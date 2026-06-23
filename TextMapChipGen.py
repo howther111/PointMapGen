@@ -3,6 +3,7 @@ from tkinter import messagebox
 from PIL import Image, ImageDraw, ImageFont
 import math
 import os
+import re
 
 
 def get_font(size):
@@ -20,11 +21,28 @@ def get_font(size):
     return ImageFont.load_default()
 
 
+def hex_to_rgba(hex_color):
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", hex_color):
+        return None
+
+    r = int(hex_color[1:3], 16)
+    g = int(hex_color[3:5], 16)
+    b = int(hex_color[5:7], 16)
+
+    return (r, g, b, 255)
+
+
 def generate_image():
     text = text_box.get("1.0", tk.END).strip()
 
     if not text:
         messagebox.showwarning("警告", "文字を入力してください。")
+        return
+
+    font_color = hex_to_rgba(color_entry.get().strip())
+
+    if font_color is None:
+        messagebox.showwarning("警告", "文字色は #000000 の形式で入力してください。")
         return
 
     char_count = len(text)
@@ -60,7 +78,7 @@ def generate_image():
         tx = x + (cell_w - tw) / 2 - bbox[0]
         ty = y + (cell_h - th) / 2 - bbox[1]
 
-        draw.text((tx, ty), ch, fill=(0, 0, 0, 255), font=font)
+        draw.text((tx, ty), ch, fill=font_color, font=font)
 
     image.save("text_map_chip.png")
     messagebox.showinfo("完了", "text_map_chip.png を生成しました。")
@@ -68,7 +86,7 @@ def generate_image():
 
 root = tk.Tk()
 root.title("テキストマップチップジェネレータ")
-root.geometry("420x320")
+root.geometry("420x360")
 
 text_box = tk.Text(root, width=45, height=8)
 text_box.pack(pady=10)
@@ -91,6 +109,15 @@ tk.Radiobutton(
     variable=bg_mode,
     value="transparent"
 ).pack(side=tk.LEFT, padx=10)
+
+color_frame = tk.Frame(root)
+color_frame.pack(pady=10)
+
+tk.Label(color_frame, text="文字色").pack(side=tk.LEFT, padx=5)
+
+color_entry = tk.Entry(color_frame, width=12)
+color_entry.insert(0, "#000000")
+color_entry.pack(side=tk.LEFT)
 
 button_frame = tk.Frame(root)
 button_frame.pack(pady=20)
