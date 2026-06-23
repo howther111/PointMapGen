@@ -114,6 +114,16 @@ def generate_place_name(min_len=2, max_len=8):
 
             name += random.choice(candidates)
 
+            # たまに長音を追加
+            # 先頭には付けない／連続では付けない／最大文字数を超えない
+            if (
+                len(name) < target_len
+                and len(name) > 1
+                and not name.endswith("ー")
+                and random.random() < 0.15
+            ):
+                name += "ー"
+
         if min_len <= len(name) <= max_len:
             return name
 
