@@ -20,8 +20,9 @@ PLATE_OFFSET_Y = 10
 PLATE_OUTLINE_WIDTH = 2
 
 
-KATAKANA_CHARS = [
-    "ア", "イ", "ウ", "エ", "オ",
+VOWELS = ["ア", "イ", "ウ", "エ", "オ"]
+
+CONSONANT_MORA = [
     "カ", "キ", "ク", "ケ", "コ",
     "サ", "シ", "ス", "セ", "ソ",
     "タ", "チ", "ツ", "テ", "ト",
@@ -30,26 +31,35 @@ KATAKANA_CHARS = [
     "マ", "ミ", "ム", "メ", "モ",
     "ヤ", "ユ", "ヨ",
     "ラ", "リ", "ル", "レ", "ロ",
-    "ワ", "ン",
+    "ワ",
     "ガ", "ギ", "グ", "ゲ", "ゴ",
     "ザ", "ジ", "ズ", "ゼ", "ゾ",
     "ダ", "デ", "ド",
     "バ", "ビ", "ブ", "ベ", "ボ",
     "パ", "ピ", "プ", "ペ", "ポ",
-    "ャ", "ュ", "ョ"
 ]
 
-SMALL_Y_CHARS = ["ャ", "ュ", "ョ"]
-SPECIAL_CHARS = ["ー", "ッ"]
+YOON_MORA = [
+    "キャ", "キュ", "キョ",
+    "シャ", "シュ", "ショ",
+    "チャ", "チュ", "チョ",
+    "ニャ", "ニュ", "ニョ",
+    "ヒャ", "ヒュ", "ヒョ",
+    "ミャ", "ミュ", "ミョ",
+    "リャ", "リュ", "リョ",
+    "ギャ", "ギュ", "ギョ",
+    "ジャ", "ジュ", "ジョ",
+    "ビャ", "ビュ", "ビョ",
+    "ピャ", "ピュ", "ピョ",
+]
 
-SMALL_Y_ALLOWED_BEFORE = [
-    "キ", "ギ",
-    "シ", "ジ",
-    "チ",
-    "ニ",
-    "ヒ", "ビ", "ピ",
-    "ミ",
-    "リ"
+ENDING_MORA = [
+    "ア", "イ", "ウ", "エ", "オ",
+    "カ", "キ", "ク", "ケ", "コ",
+    "ナ", "ニ", "ヌ", "ネ", "ノ",
+    "マ", "ミ", "ム", "メ", "モ",
+    "ラ", "リ", "ル", "レ", "ロ",
+    "ス", "ト", "ン"
 ]
 
 
@@ -86,59 +96,106 @@ def draw_centered_text(draw, box, text, font, fill):
     draw.text((x, y), text, font=font, fill=fill)
 
 
-def can_add_char(name, ch, target_len):
-    if not name:
-        if ch in SMALL_Y_CHARS or ch in SPECIAL_CHARS or ch == "ン":
-            return False
+def weighted_choice(items):
+    values = [item[0] for item in items]
+    weights = [item[1] for item in items]
+    return random.choices(values, weights=weights, k=1)[0]
 
-    prev = name[-1] if name else ""
 
-    if ch in SPECIAL_CHARS:
-        if not name:
-            return False
-        if prev in SPECIAL_CHARS or prev in SMALL_Y_CHARS:
-            return False
+def generate_syllable(is_first=False, is_last=False):
+    """
+    自然な語感になるよう、音節単位で生成する。
+    拗音は低確率、長音・促音も低確率。
+    """
+
+    if is_last:
+        syllable_type = weighted_choice([
+            ("normal", 80),
+            ("vowel", 8),
+            ("n", 8),
+            ("long", 4),
+        ])
+    elif is_first:
+        syllable_type = weighted_choice([
+            ("normal", 85),
+            ("vowel", 10),
+            ("yoon", 5),
+        ])
+    else:
+        syllable_type = weighted_choice([
+            ("normal", 75),
+            ("vowel", 8),
+            ("yoon", 7),
+            ("long", 5),
+            ("small_tsu", 5),
+        ])
+
+    if syllable_type == "vowel":
+        return random.choice(VOWELS)
+
+    if syllable_type == "yoon":
+        return random.choice(YOON_MORA)
+
+    if syllable_type == "long":
+        return "ー"
+
+    if syllable_type == "small_tsu":
+        return "ッ"
+
+    if syllable_type == "n":
+        return "ン"
+
+    if is_last:
+        return random.choice(ENDING_MORA)
+
+    return random.choice(CONSONANT_MORA)
+
+
+def is_bad_name(name):
+    bad_patterns = [
+        "ーー", "ッッ", "ンン",
+        "ーッ", "ッー",
+        "ンー", "ンッ",
+    ]
+
+    for pattern in bad_patterns:
+        if pattern in name:
+            return True
+
+    if name[0] in ["ー", "ッ", "ン"]:
         return True
 
-    if ch in SMALL_Y_CHARS:
-        if not name:
-            return False
-        if prev not in SMALL_Y_ALLOWED_BEFORE:
-            return False
+    if name[-1] in ["ー", "ッ"]:
         return True
 
-    if prev in SMALL_Y_CHARS and ch in SMALL_Y_CHARS:
-        return False
-
-    return True
+    return False
 
 
 def generate_place_name(min_len=2, max_len=8):
-    target_len = random.randint(min_len, max_len)
-
-    for _ in range(1000):
+    for _ in range(2000):
         name = ""
 
-        while len(name) < target_len:
-            candidates = [
-                ch for ch in KATAKANA_CHARS
-                if can_add_char(name, ch, target_len)
-            ]
+        while len(name) < max_len:
+            is_first = len(name) == 0
 
-            # 「ー」「ッ」は少しだけ出るようにする
-            if (
-                len(name) > 0
-                and len(name) < target_len
-                and name[-1] not in SPECIAL_CHARS
-                and name[-1] not in SMALL_Y_CHARS
-                and random.random() < 0.15
-            ):
-                candidates += SPECIAL_CHARS
+            remaining = max_len - len(name)
 
-            ch = random.choice(candidates)
-            name += ch
+            if len(name) >= min_len and random.random() < 0.35:
+                break
 
-        if min_len <= len(name) <= max_len:
+            is_last = remaining <= 1
+
+            syllable = generate_syllable(
+                is_first=is_first,
+                is_last=is_last
+            )
+
+            if len(name) + len(syllable) > max_len:
+                continue
+
+            name += syllable
+
+        if min_len <= len(name) <= max_len and not is_bad_name(name):
             return name
 
     return "ナナシ"
