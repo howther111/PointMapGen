@@ -505,12 +505,16 @@ def generate_image():
             else:
                 save_csv_names(node_names)
 
-        messagebox.showinfo(
-            "完了",
+        message = (
             f"{OUTPUT_FILE} を出力しました。\n"
             f"サイズ: {canvas_width} × {canvas_height}px\n"
-            f"パス数: {len(paths)}"
+            f"生成パス数: {len(paths)}"
         )
+
+        if random_name_enabled:
+            message += f"\n{CSV_OUTPUT_FILE} をShift_JIS形式で出力しました。"
+
+        messagebox.showinfo("完了", message)
 
     except ValueError:
         messagebox.showerror("エラー", "数値を正しく入力してください。")
