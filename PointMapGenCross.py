@@ -10,6 +10,7 @@ from PIL import Image, ImageDraw, ImageFont
 NODE_RADIUS = 50
 MIN_DISTANCE = 200
 OUTPUT_FILE = "output.png"
+CSV_OUTPUT_FILE = "placenames.csv"
 
 PATH_WIDTH = 6
 NODE_OUTLINE_WIDTH = 6
@@ -62,6 +63,16 @@ ENDING_MORA = [
     "ス", "ト", "ン"
 ]
 
+
+def save_csv_names(node_names, city_sizes=None):
+    with open(CSV_OUTPUT_FILE, "w", encoding="shift_jis", errors="ignore", newline="") as f:
+        if city_sizes is None:
+            names = list(node_names.values())
+            f.write(",".join(names))
+        else:
+            for node, name in node_names.items():
+                size = city_sizes[node]
+                f.write(f"{name},{size}\n")
 
 def load_font(size):
     font_paths = [
@@ -488,6 +499,11 @@ def generate_image():
                 )
 
         image.save(OUTPUT_FILE, "PNG")
+        if random_name_enabled:
+            if city_size_enabled:
+                save_csv_names(node_names, city_sizes)
+            else:
+                save_csv_names(node_names)
 
         messagebox.showinfo(
             "完了",
