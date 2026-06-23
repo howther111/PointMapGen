@@ -19,8 +19,7 @@ PLATE_HEIGHT = 30
 PLATE_OFFSET_Y = 10
 PLATE_OUTLINE_WIDTH = 2
 
-
-MORA_LIST = [
+KATAKANA_CHARS = [
     "ア", "イ", "ウ", "エ", "オ",
     "カ", "キ", "ク", "ケ", "コ",
     "サ", "シ", "ス", "セ", "ソ",
@@ -30,32 +29,26 @@ MORA_LIST = [
     "マ", "ミ", "ム", "メ", "モ",
     "ヤ", "ユ", "ヨ",
     "ラ", "リ", "ル", "レ", "ロ",
-    "ワ",
+    "ワ", "ン",
     "ガ", "ギ", "グ", "ゲ", "ゴ",
     "ザ", "ジ", "ズ", "ゼ", "ゾ",
     "ダ", "デ", "ド",
     "バ", "ビ", "ブ", "ベ", "ボ",
     "パ", "ピ", "プ", "ペ", "ポ",
-    "キャ", "キュ", "キョ",
-    "シャ", "シュ", "ショ",
-    "チャ", "チュ", "チョ",
-    "ニャ", "ニュ", "ニョ",
-    "ヒャ", "ヒュ", "ヒョ",
-    "ミャ", "ミュ", "ミョ",
-    "リャ", "リュ", "リョ",
-    "ギャ", "ギュ", "ギョ",
-    "ジャ", "ジュ", "ジョ",
-    "ビャ", "ビュ", "ビョ",
-    "ピャ", "ピュ", "ピョ",
+    "ャ", "ュ", "ョ"
 ]
 
-ENDING_LIST = [
-    "ア", "イ", "ウ", "エ", "オ",
-    "カ", "キ", "ク", "ケ", "コ",
-    "ナ", "ニ", "ヌ", "ネ", "ノ",
-    "マ", "ミ", "ム", "メ", "モ",
-    "ラ", "リ", "ル", "レ", "ロ",
-    "ス", "ト", "ン"
+SMALL_Y_CHARS = ["ャ", "ュ", "ョ"]
+SPECIAL_CHARS = ["ー", "ッ"]
+
+SMALL_Y_ALLOWED_BEFORE = [
+    "キ", "ギ",
+    "シ", "ジ",
+    "チ",
+    "ニ",
+    "ヒ", "ビ", "ピ",
+    "ミ",
+    "リ"
 ]
 
 
@@ -92,6 +85,33 @@ def draw_centered_text(draw, box, text, font, fill):
     draw.text((x, y), text, font=font, fill=fill)
 
 
+def can_add_char(name, ch, target_len):
+    if not name:
+        if ch in SMALL_Y_CHARS or ch in SPECIAL_CHARS or ch == "ン":
+            return False
+
+    prev = name[-1] if name else ""
+
+    if ch in SPECIAL_CHARS:
+        if not name:
+            return False
+        if prev in SPECIAL_CHARS or prev in SMALL_Y_CHARS:
+            return False
+        return True
+
+    if ch in SMALL_Y_CHARS:
+        if not name:
+            return False
+        if prev not in SMALL_Y_ALLOWED_BEFORE:
+            return False
+        return True
+
+    if prev in SMALL_Y_CHARS and ch in SMALL_Y_CHARS:
+        return False
+
+    return True
+
+
 def generate_place_name(min_len=2, max_len=8):
     target_len = random.randint(min_len, max_len)
 
@@ -99,39 +119,23 @@ def generate_place_name(min_len=2, max_len=8):
         name = ""
 
         while len(name) < target_len:
-            remaining = target_len - len(name)
-
             candidates = [
-                mora for mora in MORA_LIST
-                if len(mora) <= remaining
+                ch for ch in KATAKANA_CHARS
+                if can_add_char(name, ch, target_len)
             ]
 
-            if remaining == 1:
-                candidates = [
-                    mora for mora in ENDING_LIST
-                    if len(mora) == 1
-                ]
+            # 「ー」「ッ」は少しだけ出るようにする
+            if (
+                len(name) > 0
+                and len(name) < target_len
+                and name[-1] not in SPECIAL_CHARS
+                and name[-1] not in SMALL_Y_CHARS
+                and random.random() < 0.15
+            ):
+                candidates += SPECIAL_CHARS
 
-            name += random.choice(candidates)
-
-            if len(name) < target_len and len(name) > 1:
-                last_char = name[-1]
-
-                # 長音
-                if (
-                    last_char not in ("ー", "ッ")
-                    and random.random() < 0.15
-                    and len(name) + 1 <= target_len
-                ):
-                    name += "ー"
-
-                # 促音
-                elif (
-                    last_char not in ("ー", "ッ")
-                    and random.random() < 0.15
-                    and len(name) + 1 <= target_len
-                ):
-                    name += "ッ"
+            ch = random.choice(candidates)
+            name += ch
 
         if min_len <= len(name) <= max_len:
             return name
