@@ -3,9 +3,8 @@ import random
 
 import cv2
 import numpy as np
-from scipy.ndimage import distance_transform_edt
 from PIL import Image, ImageDraw, ImageFont
-
+import random
 
 # =========================================================
 # 基本設定
@@ -15,7 +14,7 @@ INPUT_FILE = Path("input_coastline.png")
 OUTPUT_FILE = Path("output_country.png")
 
 # 同じ結果を再現するための乱数シード
-RANDOM_SEED = 42
+RANDOM_SEED = random.randint(1, 10000)
 
 # 1か国が持つノード数
 MIN_NODES_PER_COUNTRY = 1
@@ -133,26 +132,6 @@ MINIMUM_COUNTRY_LABEL_AREA = 1500
 # =========================================================
 
 COUNTRY_NAMES = [
-    "アルディア王国",
-    "ベルネシア",
-    "ロザリア共和国",
-    "セントール帝国",
-    "ミレニア公国",
-    "ガルディア",
-    "ノルフェン王国",
-    "エルメリア",
-    "ザルバード",
-    "フェルニア",
-    "オルディス",
-    "レムナント",
-    "ヴァルハイム",
-    "ユースティア",
-    "グランベル",
-    "リュミエール",
-    "カルディナ",
-    "ネフティス",
-    "アストリア",
-    "ディルムント",
 ]
 
 
@@ -625,44 +604,14 @@ def create_country_map(
     node_centers: list[tuple[int, int]],
     node_country_ids: np.ndarray
 ) -> np.ndarray:
+    """
+    陸地上の各画素を、最も近いノードが所属する国へ割り当てる。
+
+    SciPyを使用せず、NumPyだけで距離を計算する。
+    メモリ使用量を抑えるため、陸地画素を一定数ずつ処理する。
+    """
+
     height, width = image_shape[:2]
-
-    # 0の場所を距離計算の基準点とする
-    seed_image = np.ones(
-        (height, width),
-        dtype=np.uint8
-    )
-
-    valid_nodes = []
-
-    for node_index, (x, y) in enumerate(node_centers):
-        if 0 <= x < width and 0 <= y < height:
-            seed_image[y, x] = 0
-            valid_nodes.append(
-                (x, y, node_index)
-            )
-
-    _, nearest_indices = distance_transform_edt(
-        seed_image,
-        return_indices=True
-    )
-
-    nearest_y = nearest_indices[0]
-    nearest_x = nearest_indices[1]
-
-    seed_to_node_index = np.full(
-        (height, width),
-        -1,
-        dtype=np.int32
-    )
-
-    for x, y, node_index in valid_nodes:
-        seed_to_node_index[y, x] = node_index
-
-    nearest_node_index = seed_to_node_index[
-        nearest_y,
-        nearest_x
-    ]
 
     country_map = np.full(
         (height, width),
@@ -670,16 +619,106 @@ def create_country_map(
         dtype=np.int32
     )
 
-    valid_pixel_mask = (
-        land_mask
-        & (nearest_node_index >= 0)
+    if not node_centers:
+        raise RuntimeError(
+            "国領域を作成するためのノードがありません。"
+        )
+
+    # 陸地画素のY座標とX座標
+    land_y, land_x = np.where(land_mask)
+
+    if len(land_x) == 0:
+        raise RuntimeError(
+            "陸地画素が見つかりませんでした。"
+        )
+
+    # ノード座標
+    node_points = np.asarray(
+        node_centers,
+        dtype=np.int32
     )
 
-    country_map[valid_pixel_mask] = (
-        node_country_ids[
-            nearest_node_index[valid_pixel_mask]
-        ]
+    node_x = node_points[:, 0]
+    node_y = node_points[:, 1]
+
+    # 1回に処理する陸地画素数
+    # 小さくすると省メモリ、大きくすると高速
+    chunk_size = 50000
+
+    number_of_land_pixels = len(land_x)
+
+    print(
+        f"国領域割り当て対象画素数："
+        f"{number_of_land_pixels}"
     )
+
+    for start_index in range(
+        0,
+        number_of_land_pixels,
+        chunk_size
+    ):
+        end_index = min(
+            start_index + chunk_size,
+            number_of_land_pixels
+        )
+
+        chunk_x = land_x[
+            start_index:end_index
+        ].astype(np.int32)
+
+        chunk_y = land_y[
+            start_index:end_index
+        ].astype(np.int32)
+
+        # 各画素と各ノードのX方向距離
+        dx = (
+            chunk_x[:, None]
+            - node_x[None, :]
+        )
+
+        # 各画素と各ノードのY方向距離
+        dy = (
+            chunk_y[:, None]
+            - node_y[None, :]
+        )
+
+        # 平方距離
+        # 平方根は最小値判定に不要
+        squared_distances = (
+            dx.astype(np.int64) ** 2
+            + dy.astype(np.int64) ** 2
+        )
+
+        # 各陸地画素から最も近いノード番号
+        nearest_node_indexes = np.argmin(
+            squared_distances,
+            axis=1
+        )
+
+        # 最寄りノードが所属する国番号
+        nearest_country_ids = node_country_ids[
+            nearest_node_indexes
+        ]
+
+        country_map[
+            chunk_y,
+            chunk_x
+        ] = nearest_country_ids
+
+        progress = (
+            end_index
+            / number_of_land_pixels
+            * 100
+        )
+
+        print(
+            f"\r国領域を計算中："
+            f"{progress:6.2f}%",
+            end="",
+            flush=True
+        )
+
+    print()
 
     return country_map
 
