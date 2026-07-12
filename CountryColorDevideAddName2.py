@@ -5,6 +5,7 @@ import sys
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+import csv
 
 
 # =========================================================
@@ -20,9 +21,10 @@ RANDOM_SEED = random.SystemRandom().randint(1, 10000)
 # 1か国が持つノード数
 MIN_NODES_PER_COUNTRY = 1
 MAX_NODES_PER_COUNTRY = 10
+COUNTRY_NAME_CSV_NAME = "country_names.csv"
 
 COUNTRY_NAME_SUFFIXES = [
-    "ア", "リア", "ニア", "ネス", "ディア",
+    "カ", "スタン", "ア", "リア", "ニア", "ネス", "ディア",
     "ランド", "", "王国", "帝国", "公国", "共和国",
     "連邦", "領", "自治国", "皇国", "同盟",
 ]
@@ -49,7 +51,7 @@ APPLICATION_DIRECTORY = get_application_directory()
 INPUT_FILE = APPLICATION_DIRECTORY / INPUT_FILE_NAME
 OUTPUT_FILE = APPLICATION_DIRECTORY / OUTPUT_FILE_NAME
 NODE_DEBUG_FILE = APPLICATION_DIRECTORY / "ノード検出結果.png"
-
+COUNTRY_NAME_CSV = APPLICATION_DIRECTORY / COUNTRY_NAME_CSV_NAME
 
 # =========================================================
 # 海・陸地判定設定
@@ -317,6 +319,28 @@ def save_image(
         )
 
     encoded_image.tofile(str(path))
+
+
+# =========================================================
+# 国名CSV出力
+# =========================================================
+
+def save_country_name_csv(
+    path: Path,
+    country_names: list[str]
+) -> None:
+
+    with open(
+        path,
+        "w",
+        newline="",
+        encoding="utf-8-sig"
+    ) as csvfile:
+
+        writer = csv.writer(csvfile)
+
+        for name in country_names:
+            writer.writerow([name])
 
 
 # =========================================================
@@ -1919,6 +1943,13 @@ def main() -> None:
         number_of_countries=len(
             country_groups
         )
+    )
+
+    print("国名一覧CSVを保存しています...")
+
+    save_country_name_csv(
+        COUNTRY_NAME_CSV,
+        country_names
     )
 
     for country_id, country_name in enumerate(
